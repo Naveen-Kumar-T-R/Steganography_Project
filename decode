@@ -1,0 +1,312 @@
+#include<stdio.h>
+#include "decode.h"
+#include "types.h"
+
+// Validate and read command-line arguments for decoding
+status read_and_validate_decode_args(char *argv[], DecodeInfo *decInfo)
+{
+    // Check if stego image has .bmp extension
+    if(strstr(argv[2], ".bmp") != NULL)
+    {
+        decInfo->src_stego_image_fname = argv[2];
+    }
+    else
+    {
+        return d_failure;
+    }
+    // Check if optional output filename is given
+    if(argv[3] == NULL)
+    {
+        // Use default if not provided
+        strcpy(decInfo->output_fname, "output");
+    }
+    else
+    {
+        if(strchr(argv[3], '.') != NULL)
+        {
+            printf("INFO : File extension should not give\n");
+            return d_failure;
+        }
+        strcpy(decInfo->output_fname, argv[3]);
+    }
+    return d_success;
+
+}
+
+// Main decoding function
+status do_decoding(DecodeInfo *decInfo)
+{
+    // Open required files
+    if(Open_files(decInfo) == d_success)
+    {
+        printf("INFO : File open successfully\n");
+    }
+    else
+    {
+        printf("INFO : File not opened\n");
+        return d_failure;
+    }
+
+    // Prompt user to enter the magic string for validation
+    printf("Enter the magic string: ");
+    scanf("%s", decInfo->magic_str);
+
+    // printf("magic string is %s\n", decInfo->magic_str);
+
+    // Skip BMP header (usually 54 bytes)
+    fseek(decInfo->fptr_src_stego_image, 54, SEEK_SET);
+    // printf(" ftell is %lu", ftell(decInfo->fptr_src_stego_image));
+
+    // Decode the size of the magic string
+    if(decode_magic_string_size(decInfo) == d_success)
+    {
+        printf("INFO : Magic string size is decoded\n");
+        // printf("magic str size is : %d\n", decInfo->magic_str_size);
+    }
+    else
+    {
+        printf("INFO : Magic string size is not decoded\n");
+        return d_failure;
+    }
+    // Decode the magic string and validate it
+    if(decode_magic_string(decInfo->magic_str, decInfo) == d_success)
+    {
+        printf("INFO : Magic string is decoded\n");
+    }
+    else
+    {
+        printf("INFO : Magic string is not decoded\n");
+        return d_failure;
+    }
+    // Decode the size of the secret file extension
+    if(decode_secret_file_extn_size(decInfo) == d_success)
+    {
+        printf("INFO : Secret file extn size is decoded\n");
+    }
+    else
+    {
+        printf("INFO : Secret file extn size is not decoded\n");
+        return d_failure;
+    }
+    // printf("secret file name is %s",decInfo->output_fname);
+    // Decode the secret file extension (e.g., .txt)
+    if(decode_secret_file_extn(decInfo) == d_success)
+    {
+        printf("INFO : Secret file exten(text) is decoded\n");
+    }
+    else
+    {
+        printf("INFO : Secret file exten(text) is not decoded");
+        return d_failure;
+    }
+    // Open output file to store the decoded data
+    decInfo->fptr_output = fopen(decInfo->output_fname, "w");
+
+    if (decInfo->fptr_output == NULL)
+    {
+    	perror("fopen");
+    	fprintf(stderr, "ERROR: Unable to open file %s\n",decInfo->output_fname);
+
+    	return d_failure;
+    }
+    printf("INFO : Output file is opened\n");
+    // Decode the size of the secret file
+    if(decode_secret_file_size(decInfo) == d_success)//secret file size(whole file size)
+    {
+        printf("INFO : Secret file size is decoded\n");
+    }
+    else
+    {
+        printf("INFO : Secret file size is not decoded\n");
+        return d_failure;
+    }
+    // Decode the actual secret data
+    if(decode_secret_file_data(decInfo) == d_success)
+    {
+        printf("INFO : Secret data is decoded\n");
+    }
+    else
+    {
+        printf("INFO : Secret data is not decoded\n");
+        return d_failure;
+    }
+
+    fclose(decInfo->fptr_src_stego_image);
+    fclose(decInfo->fptr_output);
+    return d_success;
+
+}
+
+// Decode secret file size from LSBs
+status decode_secret_file_size(DecodeInfo *decInfo)
+{
+    if(decode_lsb_to_size(&decInfo->size_of_secret_file, decInfo) == d_success)
+    {
+        printf("INFO : Secret file size stored\n");
+        return d_success;
+    }
+    return d_failure;
+}
+
+// Decode extension size of the secret file
+status decode_secret_file_extn_size(DecodeInfo *decInfo)
+{
+    if(decode_lsb_to_size(&decInfo->extn_of_secret_file_size, decInfo) == d_success)
+    {
+        printf("INFO : Secret file extn size readed\n");
+        return d_success;
+    }
+    return d_failure;
+}
+
+// Decode magic string size
+status decode_magic_string_size(DecodeInfo *decInfo)
+{
+    if(decode_lsb_to_size(&decInfo->magic_str_size, decInfo) == d_success)
+    {
+        // printf("INFO : Magic string size is readed\n");
+        if(decInfo->magic_str_size == strlen(decInfo->magic_str))
+        {
+            printf("INFO : Magic string size is readed\n");
+            return d_success;
+        }
+        else
+        {
+            printf("INFO : Magic string size not matched\n");
+            return d_failure;
+        }
+    }
+
+    return d_failure;
+}
+// Extract 32 bits (4 bytes) of size from LSBs
+status decode_lsb_to_size(int *size, DecodeInfo *decInfo)
+{
+    *size = 0;
+    char buffer[32];
+    // printf("pos = %ld\n", ftell(decInfo -> fptr_src_stego_image));
+    fread(buffer, 32, 1, decInfo->fptr_src_stego_image);
+    // Reconstruct size by reading LSB of each byt
+    for(int i = 31; i >= 0; i--)
+    {
+        *size = *size | ((buffer[i] & 1) << i);
+    }
+    
+    // printf("INFO : Size is %d\n", *size);
+    return d_success;
+}
+
+// Decode the secret file data
+status decode_secret_file_data(DecodeInfo *decInfo)
+{
+    char data_buffer[decInfo->size_of_secret_file];
+
+    if(decode_image_to_data(data_buffer, decInfo->size_of_secret_file, decInfo) == d_success)
+    {
+        // printf("INFO : Data is = %s\n", data_buffer);
+        // Avoid writing null character
+        fwrite(data_buffer, decInfo->size_of_secret_file-1, 1, decInfo->fptr_output);
+        printf("INFO : Data is stored\n");
+        return d_success;
+    }
+    else
+    {
+        printf("INFO : Data is not stored\n");
+        return d_failure;
+    }
+}
+
+// Decode file extension string and update output filename
+status decode_secret_file_extn(DecodeInfo *decInfo)
+{
+    if(decode_image_to_data(decInfo->extn_of_secret_file, decInfo->extn_of_secret_file_size, decInfo) == d_success)
+    {  
+        // printf("%s",decInfo->output_fname);
+        // printf("INFO : Secret file extn is : %s\n", decInfo->extn_of_secret_file);
+        strcat(decInfo->output_fname, decInfo->extn_of_secret_file);
+
+        // printf("INFO : Secret file name is %s\n", decInfo->output_fname);
+
+        return d_success;
+    }
+    else
+    {
+        printf("INFO : Secret file extn is not stored\n");
+        return d_failure;
+    }
+}
+
+// Decode and validate the magic string
+status decode_magic_string(const char *magic_str, DecodeInfo *decInfo)
+{
+    if(decode_image_to_data(decInfo->magic_str_buffer, decInfo->magic_str_size, decInfo) == d_success)
+    {
+        if(strcmp(magic_str, decInfo->magic_str_buffer) == 0)
+        {
+            printf("INFO : Magic string is matched\n");
+            return d_success;
+        }
+        else
+        {
+            printf("INFO : Magic string is not matched\n");
+            return d_failure;
+        }
+    }
+    else
+    {
+        printf("INFO : Magic string is not readed\n");
+        return e_failure;
+    }
+}
+
+// Decode a string of data from the image using LSBs
+status decode_image_to_data(char *data, int size, DecodeInfo *decInfo)
+{
+    for(int i = 0; i < size; i++)
+    {
+        fread(decInfo->image_data, 1, 8, decInfo->fptr_src_stego_image);
+
+        if(decode_lsb_to_byte(&data[i], decInfo->image_data) == d_success)
+        {
+            
+        }
+        else
+        {
+            return d_failure;
+        }
+    }
+    // Null terminate the string
+    data[size] = '\0';
+    // printf("INFO : Data is %s\n", data);
+
+    return d_success;
+}
+
+// Extract a single byte from LSBs of 8 bytes
+status decode_lsb_to_byte(char *data, char *image_buffer)
+{
+    *data = 0;
+    for(int i = 0; i < 8; i++)
+    {
+        *data = *data | (image_buffer[i] & 1) << i;
+    }
+
+    return d_success;
+}
+
+// Open the source stego image file
+status Open_files(DecodeInfo *decInfo)
+{
+    decInfo->fptr_src_stego_image = fopen(decInfo->src_stego_image_fname, "rb");
+
+    if (decInfo->fptr_src_stego_image == NULL)
+    {
+    	perror("fopen");
+    	fprintf(stderr, "ERROR: Unable to open file %s\n",decInfo->src_stego_image_fname);
+
+    	return d_failure;
+    }
+
+    return d_success;
+}
+
