@@ -1,0 +1,101 @@
+#include <stdio.h>
+#include "encode.h"
+#include "decode.h"
+#include "types.h"
+
+// Main function that drives encoding or decoding based on command line arguments
+int main(int argc, char *argv[])
+{
+    // Check if sufficient arguments are passed
+    if(argc < 3)
+    {
+        printf("Not Sufficient CLA\n");
+        printf("INFO : Please pass valid arguments.\n");
+        printf("\nINFO : Encoding - minimum 4 arguments.\n");
+        printf("Usage : ./a.out -e  <source_image_file>  <secret_data_file>  [Destination_image_file]\n");
+        printf("\nINFO : Decoding - minimum 3 arguments.\n");
+        printf("Usage : ./a.out -d  <encoded_image>  [output_file_name]\n");
+
+        return e_failure;
+    }
+    // Declare structure to hold encoding information
+    EncodeInfo encode;
+
+     // Check if the user selected encoding operation
+    if(check_operation_type(argv) == e_encode)
+    {
+        // Check if sufficient arguments are passed
+        if(argc < 4)
+        {
+            printf("Not Sufficient CLA\n");
+            printf("INFO : Please pass valid arguments.\n");
+            printf("\nINFO : Encoding - minimum 4 arguments.\n");
+            printf("Usage : ./a.out -e  <source_image_file>  <secret_data_file>  [Destination_image_file]\n");
+            printf("\nINFO : Decoding - minimum 3 arguments.\n");
+            printf("Usage : ./a.out -d  <encoded_image>  [output_file_name]\n");
+
+            return e_failure;
+        }
+        printf("INFO : You have choosed encoding\n");
+        // Validate input arguments for encoding
+        if(read_and_validate_encode_args(argv, &encode) == e_success)
+        {
+            printf("INFO : Read and validate arguments are success\n");
+        }
+        else
+        {
+            printf("INFO : Read and validate arguments are not success\n");
+            return e_failure;
+        }
+
+        // Perform encoding if validation is successful
+        if(do_encoding(&encode) == e_success)
+        {
+            printf("INFO : Encoded successfully\n");
+            return e_success;
+        }
+        else
+        {
+            printf("INFO : Encoding Unsuccessfull\n");
+            return e_failure;
+        }
+
+    }
+    
+    // Declare structure to hold decoding information
+    DecodeInfo decode;
+
+     // Check if the user selected decoding operation
+    if(check_operation_type(argv) == e_decode)
+    {
+        printf("INFO : You have choosed decoding\n");
+        // Validate input arguments for decoding
+        if(read_and_validate_decode_args(argv, &decode) == d_success)
+        {
+            printf("INFO : Read and validate arguments are success\n");
+        }
+        else
+        {
+            printf("INFO : Read and validate arguments are not success\n");
+            return d_failure;
+        }
+
+        // Perform decoding if validation is successful
+        if(do_decoding(&decode) == d_success)
+        {
+            printf("INFO : Decoded successfully\n");
+            return d_success;
+        }
+        else
+        {
+            printf("INFO : Decoding Unsuccessfull\n");
+            return d_failure;
+        }
+
+    }
+
+    // If neither -e nor -d is provided, inform the user
+    printf("INFO : Unsupported operation. Use -e for encoding or -d for decoding.\n");
+    return e_failure;
+}
+
