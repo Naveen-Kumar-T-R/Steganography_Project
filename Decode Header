@@ -1,0 +1,72 @@
+#ifndef DECODE_H
+#define DECODE_H
+#include<string.h>
+
+#include "types.h"
+#define MAX_FILE_SUFFIX 4
+#define MAX_SECRET_BUF_SIZE 1
+#define MAX_IMAGE_BUF_SIZE (MAX_SECRET_BUF_SIZE * 8)
+
+typedef struct _DecodeInfo
+{
+    /*Stego Image Info*/
+    char *src_stego_image_fname;
+    FILE *fptr_src_stego_image;
+    char image_data[MAX_IMAGE_BUF_SIZE];
+    
+
+    /*Output File Info*/
+    char output_fname[100];
+    FILE *fptr_output;
+
+    /*Secret File Info*/
+    char extn_of_secret_file[MAX_FILE_SUFFIX];
+    int extn_of_secret_file_size;
+    int size_of_secret_file;
+
+    /*magic string*/
+    char magic_str[20];
+    int magic_str_size;
+    char magic_str_buffer[20];
+
+} DecodeInfo;
+
+/* Decoding function prototype */
+
+/* Read and validate Decode args from argv */
+status read_and_validate_decode_args(char *argv[], DecodeInfo *decInfo);
+
+/* Perform the decoding */
+status do_decoding(DecodeInfo *decInfo);
+
+/* Get File pointers for i/p and o/p files */
+status Open_files(DecodeInfo *decInfo);
+
+/* decode magic string size */
+status decode_magic_string_size(DecodeInfo *decInfo);
+
+/* decode size (e.g., 4 bytes) from image using LSB */
+status decode_lsb_to_size(int *size, DecodeInfo *decInfo);
+
+/* Decodes and verifies the magic string from the stego image */
+status decode_magic_string(const char *magic_str, DecodeInfo *decInfo);
+
+/* Decode function, which does the real decoding */
+status decode_image_to_data(char *data, int size, DecodeInfo *decInfo);
+
+/* Decode a LSB into byte of image data array */
+status decode_lsb_to_byte(char *data, char *image_buffer);
+
+/* Decode secret file extenstion size */
+status decode_secret_file_extn_size(DecodeInfo *decInfo);
+
+/* Decode secret file extenstion */
+status decode_secret_file_extn(DecodeInfo *decInfo);
+
+/* Decode secret file size */
+status decode_secret_file_size(DecodeInfo *decInfo);
+
+/* Decode secret file data*/
+status decode_secret_file_data(DecodeInfo *decInfo);
+
+#endif
